@@ -77,6 +77,10 @@ flowchart LR
 
 1. Connect a warehouse for the environment (Environment Settings > Warehouse). The managed Flagsmith warehouse is fine.
 2. Create the multivariate flag `hero_cta` with value `control` and one variation `outcome`.
+   Or let the script do it: add `FLAGSMITH_ADMIN_KEY` (Organisation API key) and `FLAGSMITH_PROJECT_ID`
+   to `.env` (plus `FLAGSMITH_ADMIN_URL=http://localhost:8000/api/v1/` if self-hosted) and run
+   `npm run setup`. It creates the flag if missing (50/50), prints each environment's client key,
+   and lists the remaining manual steps. `npm run setup -- --dry-run` shows the requests first.
 3. Create a metric: event `cta_click`, aggregation Occurrence, direction increase.
 4. Create the experiment on `hero_cta`: 100% rollout, split evenly, primary metric `cta_click`. Launch it.
 
@@ -91,6 +95,8 @@ npm run dev               # http://localhost:5173
 Open the page. The **Live experiment** panel shows the flag, your assigned variant, your visitor id,
 enrollment status, the hypothesis, and a live event log (`identify`, `$flag_exposure`, `cta_click`).
 The **New visitor** button resets your visitor id, so you can watch bucketing happen.
+`?preview=control` or `?preview=outcome` shows either variant without enrolling or sending any
+events (handy for screenshots).
 
 ### 3. Traffic
 
@@ -110,9 +116,17 @@ npm run simulate -- --visitors 1000 --dry-run      # offline sanity check
 | `--p-outcome` | `SIM_P_OUTCOME` or `0.11` | Simulated click probability for `outcome`. |
 | `--dry-run` | off | No Flagsmith calls and no events. Variants are assigned by hashing the visitor id. Checks the simulator only. |
 | `--quiet` | off | Hides per-visit error messages. |
+| `--json <path>` | none | Also writes the final stats and comparison to a JSON file. |
 
 The simulator prints per-variant visits, clicks and CTR bars, relative lift, a 95% confidence
-interval, a two-proportion z-test p-value (`scripts/stats.mjs`), and a verdict: significant or not yet.
+interval, a two-proportion z-test p-value (`scripts/stats.mjs`), a verdict (significant or not yet), and
+one sentence in plain words, e.g. *"visitors who saw “Get paid 2x faster” clicked 47% more often. A gap
+this big would show up by chance less than 1 in 1,000 times, so outcome wins."*
+
+### 4. Tests
+
+`npm test` runs unit tests for the stats and experiment logic plus a simulator smoke test.
+GitHub Actions runs tests and the build on every push and PR.
 
 Each simulated visitor gets its own Flagsmith client and identity, so exposures and clicks go
 through the real events pipeline.

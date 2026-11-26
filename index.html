@@ -3,14 +3,25 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="Lumen sends scheduled reminders for unpaid invoices so freelancers get paid faster." />
-  <title>Lumen</title>
+  <meta name="description" content="Lumen sends scheduled reminders for unpaid invoices so freelancers get paid faster. A fictional product: this page is a live A/B test demo." />
+  <meta name="theme-color" content="#0b0d12" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#f6f7fb" media="(prefers-color-scheme: light)" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Lumen" />
+  <meta property="og:title" content="Lumen: get paid faster on unpaid invoices" />
+  <meta property="og:description" content="Lumen sends scheduled reminders for unpaid invoices. A fictional invoice tool and live A/B test demo." />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Lumen: get paid faster on unpaid invoices" />
+  <meta name="twitter:description" content="Lumen sends scheduled reminders for unpaid invoices. A fictional invoice tool and live A/B test demo." />
+  <title>Lumen: invoice reminders (A/B test demo)</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" />
   <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
+  <a class="skip" href="#top">Skip to main content</a>
   <header class="nav">
     <div class="wrap nav-in">
       <a class="logo" href="#top" aria-label="Lumen home">Lumen<span>.</span></a>
@@ -27,7 +38,8 @@
     <p id="sub" class="sub">&nbsp;</p>
     <button id="cta" class="cta" disabled>…</button>
     <p class="trust">No credit card · 2-minute setup</p>
-    <p id="thanks" class="thanks" hidden>Thanks! We'll be in touch.</p>
+    <p id="thanks" class="thanks" hidden aria-live="polite">Thanks! We'll be in touch.</p>
+    <noscript><p class="noscript">This demo needs JavaScript to load the headline, button and live experiment panel.</p></noscript>
   </main>
 
   <section id="how" class="section">
@@ -91,7 +103,7 @@
       <dt>Visitor</dt><dd><code id="xp-visitor">…</code></dd>
     </dl>
     <p id="xp-hypothesis" class="xp-hyp"></p>
-    <ol id="xp-events" class="xp-events"></ol>
+    <ol id="xp-events" class="xp-events" aria-live="polite"></ol>
     <button id="xp-reset" type="button" class="xp-reset">New visitor</button>
   </details>
 

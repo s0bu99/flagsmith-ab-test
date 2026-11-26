@@ -5,6 +5,9 @@ const KEY = 'lumen_visitor_id';
 const $ = (s) => document.getElementById(s);
 const put = (id, text) => { const el = $(id); if (el) el.textContent = text; };
 const envKey = import.meta.env.VITE_FLAGSMITH_ENV_KEY;
+// ?preview=control|outcome renders one variant with Flagsmith and all tracking off (for screenshots).
+const previewParam = new URLSearchParams(location.search).get('preview');
+const preview = Object.hasOwn(VARIANTS, previewParam) ? previewParam : null;
 
 function visitorId() {
   try {
@@ -21,11 +24,14 @@ function log(text) {
 }
 
 const id = visitorId();
-const STATUS = { enrolled: 'enrolled', out: 'not enrolled', offline: 'offline · control' };
+const STATUS = { enrolled: 'enrolled', out: 'not enrolled', offline: 'offline · control', preview: 'preview · not tracked' };
 let result = { variant: 'control', copy: VARIANTS.control, inExperiment: false };
-let state = 'offline';
+let state = preview ? 'preview' : 'offline';
 
-if (envKey) {
+if (preview) {
+  result = { variant: preview, copy: VARIANTS[preview], inExperiment: false };
+  log('preview mode: no events sent');
+} else if (envKey) {
   try {
     result = await enrol(flagsmith, {
       environmentID: envKey,
@@ -66,9 +72,19 @@ $('xp-reset')?.addEventListener('click', () => {
   location.reload();
 });
 
+// Preview links, appended after the reset button.
+const links = document.createElement('div');
+links.className = 'xp-links';
+const addLink = (text, href) => { const a = document.createElement('a'); a.textContent = text; a.href = href; links.append(a); };
+for (const v of Object.keys(VARIANTS)) addLink(`Preview ${v}`, `?preview=${v}`);
+if (preview) addLink('Exit preview', './');
+const resetBtn = $('xp-reset');
+if (resetBtn) resetBtn.after(links); else $('xp')?.append(links);
+
 cta?.addEventListener('click', async () => {
   try {
-    if (state === 'offline') log('cta_click (offline, not sent)');
+    if (state === 'preview') log('cta_click (preview, not sent)');
+    else if (state === 'offline') log('cta_click (offline, not sent)');
     else { trackCtaClick(flagsmith); await flagsmith.flushEvents(); log('cta_click → flushed'); }
   } catch (e) {
     console.warn('CTA tracking failed', e);
@@ -79,5 +95,5 @@ cta?.addEventListener('click', async () => {
 });
 
 addEventListener('pagehide', () => {
-  if (envKey) flagsmith.flushEvents();
+  if (envKey && state !== 'preview') flagsmith.flushEvents();
 });

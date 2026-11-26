@@ -6,7 +6,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "simulate": "node scripts/simulate.mjs"
+    "simulate": "node scripts/simulate.mjs",
+    "setup": "node scripts/setup.mjs",
+    "test": "node --test test/*.test.mjs"
   },
   "license": "MIT",
   "dependencies": {

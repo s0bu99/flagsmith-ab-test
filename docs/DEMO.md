@@ -2,7 +2,7 @@
 
 The demo shows one real experiment from start to finish: the flag, the page, a click, the traffic, and the result.
 
-Note: the live experiment panel on the page and the simulator's verdict line are being built in parallel. If they are not in the build when you record, skip the lines that mention them.
+Tip: open `?preview=control` and `?preview=outcome` in two tabs to show both variants side by side without sending events.
 
 ## Pre-recording checklist
 

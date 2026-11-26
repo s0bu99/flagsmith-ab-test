@@ -8,9 +8,12 @@
 //   node scripts/simulate.mjs --visitors 500
 //   node scripts/simulate.mjs --rate 30 --forever          # 30 visitors/min until stopped
 //   node scripts/simulate.mjs --visitors 2000 --dry-run    # no Flagsmith, sanity check only
+//   node scripts/simulate.mjs --visitors 2000 --json out/sim.json  # also save final stats as JSON
 
 import { parseArgs } from 'node:util';
 import { randomUUID, createHash } from 'node:crypto';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { createFlagsmithInstance } from '@flagsmith/flagsmith/isomorphic';
 import { enrol, trackCtaClick, VARIANTS } from '../src/experiment.js';
 import { loadEnv } from './env.mjs';
@@ -27,6 +30,7 @@ const { values: o } = parseArgs({
     'p-outcome': { type: 'string', default: process.env.SIM_P_OUTCOME ?? '0.11' },
     'dry-run': { type: 'boolean', default: false },
     quiet: { type: 'boolean', default: false },
+    json: { type: 'string' },                       // write final stats + compare() to this file
   },
 });
 
@@ -94,6 +98,29 @@ function comparisonLines() {
   return [`${color(headline)}  ${dim(detail)}  ${verdict}`];
 }
 
+// One plain-English sentence for the final report.
+const label = (v) => VARIANTS[v].headline.split(/[.?!]/)[0].trim();
+
+function plainWords() {
+  const r = compare(stats.control, stats.outcome);
+  if (r.pA === null || r.pB === null) return 'In plain words: not enough visits in both versions yet to call a winner. Keep the test running.';
+  if (r.diff === 0) return 'In plain words: both versions got the same click rate so far. Keep the test running.';
+  const better = r.diff > 0 ? 'outcome' : 'control';
+  const hi = Math.max(r.pA, r.pB), lo = Math.min(r.pA, r.pB);
+  const amount = lo > 0 ? `${Math.round(100 * (hi / lo - 1))}%` : `${(100 * (hi - lo)).toFixed(1)} percentage points`;
+  const who = `visitors who saw “${label(better)}” clicked ${amount} more often`;
+  if (!r.significant) return `In plain words: ${who}, but with this little traffic that could still be luck (p=${r.pValue.toFixed(2)}). Keep the test running.`;
+  const chance = r.pValue < 0.001 ? 'less than 1 in 1,000' : `about 1 in ${Math.round(1 / r.pValue)}`;
+  return `In plain words: ${who}. A gap this big would show up by chance ${chance} times, so ${better} wins.`;
+}
+
+function writeJson() {
+  if (!o.json) return;
+  mkdirSync(dirname(o.json), { recursive: true });
+  const payload = { generatedAt: new Date().toISOString(), stats, compare: compare(stats.control, stats.outcome) };
+  writeFileSync(o.json, JSON.stringify(payload, null, 2) + '\n');
+}
+
 function report(final = false) {
   const names = Object.keys(stats);
   const maxCtr = Math.max(0, ...names.map((v) => ctrOf(stats[v])));
@@ -106,6 +133,7 @@ function report(final = false) {
     ...rows,
     '',
     ...comparisonLines(),
+    ...(final ? [plainWords()] : []),
     `errors ${errors}${outside ? `  not-enrolled ${outside} (experiment not running or outside rollout %)` : ''}`,
   ].join('\n'));
 }
@@ -129,7 +157,7 @@ if (o.rate) {
       launched++; inflight++;
       guarded().finally(() => inflight--);
     }, gap);
-    process.on('SIGINT', () => { clearInterval(tick); report(true); process.exit(0); });
+    process.on('SIGINT', () => { clearInterval(tick); report(true); writeJson(); process.exit(0); });
   });
   clearInterval(reportTimer);
 } else {
@@ -149,4 +177,5 @@ if (o.rate) {
   }
 }
 report(true);
+writeJson();
 process.exit(0);
