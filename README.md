@@ -123,7 +123,14 @@ interval, a two-proportion z-test p-value (`scripts/stats.mjs`), a verdict (sign
 one sentence in plain words, e.g. *"visitors who saw “Get paid 2x faster” clicked 47% more often. A gap
 this big would show up by chance less than 1 in 1,000 times, so outcome wins."*
 
-### 4. Tests
+### 4. Host it (GitHub Pages)
+
+`.github/workflows/pages.yml` deploys `main` to `https://<owner>.github.io/<repo>/`. One-time: Settings > Pages >
+Source: **GitHub Actions**, and add your client-side key as the Actions variable `VITE_FLAGSMITH_ENV_KEY`
+(safe to expose). Without the key the page runs in offline mode. A public page needs a Flagsmith that
+visitors' browsers can reach (cloud, or a public self-hosted URL), not `localhost`.
+
+### 5. Tests
 
 `npm test` runs unit tests for the stats and experiment logic plus a simulator smoke test.
 GitHub Actions runs tests and the build on every push and PR.
