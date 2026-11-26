@@ -14,6 +14,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { createFlagsmithInstance } from '@flagsmith/flagsmith/isomorphic';
 import { enrol, trackCtaClick, VARIANTS } from '../src/experiment.js';
 import { loadEnv } from './env.mjs';
+import { compare } from './stats.mjs';
 
 loadEnv();
 const { values: o } = parseArgs({
@@ -40,8 +41,15 @@ if (!o['dry-run'] && !env.environmentID) {
   process.exit(1);
 }
 
+// Colors only on a real terminal, and never when NO_COLOR is set.
+const useColor = !!process.stdout.isTTY && !process.env.NO_COLOR;
+const paint = (code, s) => (useColor ? `\x1b[${code}m${s}\x1b[0m` : s);
+const green = (s) => paint('32', s);
+const yellow = (s) => paint('33', s);
+const dim = (s) => paint('2', s);
+
 const stats = Object.fromEntries(Object.keys(VARIANTS).map((v) => [v, { visits: 0, clicks: 0 }]));
-let errors = 0, outside = 0;
+let errors = 0, outside = 0, done = 0;
 
 async function visit() {
   const visitorId = 'sim_' + randomUUID();
@@ -63,15 +71,48 @@ async function visit() {
   if (fs) await fs.close(10000);
 }
 
+const BAR_WIDTH = 30;
+const ctrOf = (s) => (s.visits ? s.clicks / s.visits : 0);
+
+function bar(ctr, maxCtr) {
+  const filled = maxCtr > 0 ? Math.round((BAR_WIDTH * ctr) / maxCtr) : 0;
+  return '█'.repeat(filled).padEnd(BAR_WIDTH);
+}
+
+const signed = (x, digits) => `${x >= 0 ? '+' : ''}${x.toFixed(digits)}`;
+
+function comparisonLines() {
+  const r = compare(stats.control, stats.outcome);
+  if (r.pA === null || r.pB === null) return [dim('outcome vs control: waiting for visits in both variants')];
+  const headline = r.lift === null
+    ? 'outcome vs control: lift n/a'
+    : `outcome vs control: ${signed(100 * r.lift, 1)}% lift`;
+  const pText = r.pValue < 0.0001 ? 'p<0.0001' : `p=${r.pValue.toFixed(4)}`;
+  const detail = `(diff ${signed(100 * r.diff, 1)}pp, 95% CI ${signed(100 * r.ci95[0], 1)}pp to ${signed(100 * r.ci95[1], 1)}pp)  ${pText}`;
+  const verdict = r.significant ? green('✅ significant') : yellow('⏳ not significant yet');
+  const color = r.significant ? green : yellow;
+  return [`${color(headline)}  ${dim(detail)}  ${verdict}`];
+}
+
 function report(final = false) {
-  const rows = Object.entries(stats).map(([v, s]) =>
-    `${v.padEnd(8)} visits ${String(s.visits).padStart(6)}  clicks ${String(s.clicks).padStart(5)}  CTR ${(s.visits ? (100 * s.clicks) / s.visits : 0).toFixed(2)}%`);
-  console.log(`${final ? '\nDone.' : new Date().toISOString()}\n${rows.join('\n')}` +
-    `\nerrors ${errors}${outside ? `  not-enrolled ${outside} (experiment not running or outside rollout %)` : ''}`);
+  const names = Object.keys(stats);
+  const maxCtr = Math.max(0, ...names.map((v) => ctrOf(stats[v])));
+  const rows = names.map((v) => {
+    const s = stats[v];
+    return `${v.padEnd(8)} visits ${String(s.visits).padStart(6)}  clicks ${String(s.clicks).padStart(5)}  CTR ${(100 * ctrOf(s)).toFixed(2)}%  ${bar(ctrOf(s), maxCtr)}`;
+  });
+  console.log([
+    final ? '\nDone.' : new Date().toISOString(),
+    ...rows,
+    '',
+    ...comparisonLines(),
+    `errors ${errors}${outside ? `  not-enrolled ${outside} (experiment not running or outside rollout %)` : ''}`,
+  ].join('\n'));
 }
 
 async function guarded() {
   try { await visit(); } catch (e) { errors++; if (!o.quiet) console.error('visit failed:', e.message); }
+  finally { done++; }
 }
 
 const concurrency = +o.concurrency;
@@ -95,9 +136,17 @@ if (o.rate) {
   // Burst mode: N visitors, `concurrency` at a time.
   let next = 0;
   const total = +o.visitors;
+  const showProgress = !!process.stdout.isTTY && !o.quiet;
+  const progress = showProgress
+    ? setInterval(() => process.stdout.write(`\r\x1b[K${dim(`${done}/${total} visitors · ${errors} errors`)}`), 250)
+    : null;
   await Promise.all(Array.from({ length: concurrency }, async () => {
     while (next < total) { next++; await guarded(); }
   }));
+  if (progress) {
+    clearInterval(progress);
+    process.stdout.write('\r\x1b[K'); // clear the progress line before the report
+  }
 }
 report(true);
 process.exit(0);

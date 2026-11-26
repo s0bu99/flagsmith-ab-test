@@ -3,18 +3,98 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Lumen sends scheduled reminders for unpaid invoices so freelancers get paid faster." />
   <title>Lumen</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" />
   <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
-  <main class="hero" data-variant="loading">
-    <p class="brand">Lumen</p>
+  <header class="nav">
+    <div class="wrap nav-in">
+      <a class="logo" href="#top" aria-label="Lumen home">Lumen<span>.</span></a>
+      <nav class="nav-links" aria-label="Page sections">
+        <a href="#how">How it works</a>
+        <a href="#invoices">Invoices</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top" class="hero" data-variant="loading">
+    <span class="eyebrow">Invoice chasing on autopilot</span>
     <h1 id="headline">&nbsp;</h1>
     <p id="sub" class="sub">&nbsp;</p>
-    <button id="cta" disabled>…</button>
+    <button id="cta" class="cta" disabled>…</button>
+    <p class="trust">No credit card · 2-minute setup</p>
     <p id="thanks" class="thanks" hidden>Thanks! We'll be in touch.</p>
   </main>
-  <footer><span id="debug"></span></footer>
+
+  <section id="how" class="section">
+    <div class="wrap">
+      <p class="kicker">How it works</p>
+      <h2>Three steps. Then you're done chasing.</h2>
+      <div class="cards">
+        <article class="card">
+          <span class="num">1</span>
+          <h3>Connect your invoices</h3>
+          <p>Import from your invoicing tool or add an invoice in seconds.</p>
+        </article>
+        <article class="card">
+          <span class="num">2</span>
+          <h3>Set a friendly schedule</h3>
+          <p>Choose a gentle nudge, a follow-up, or a final notice. Lumen writes the emails.</p>
+        </article>
+        <article class="card">
+          <span class="num">3</span>
+          <h3>Get paid</h3>
+          <p>Every payment is tracked, and reminders stop the moment the money lands.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="invoices" class="section section-alt">
+    <div class="wrap">
+      <p class="kicker">Invoice status</p>
+      <h2>Always know who owes you what.</h2>
+      <div class="inv" role="table" aria-label="Example invoices">
+        <div class="inv-head" role="row">
+          <span>Invoices</span><span class="muted">This month</span>
+        </div>
+        <div class="inv-row" role="row">
+          <div class="inv-who"><strong>Northwind Studio</strong><small>INV-1042</small></div>
+          <span class="amt">$2,400</span>
+          <span class="chip paid">Paid</span>
+        </div>
+        <div class="inv-row" role="row">
+          <div class="inv-who"><strong>Hallway Coffee</strong><small>INV-1047</small></div>
+          <span class="amt">$860</span>
+          <span class="chip reminder">Reminder sent</span>
+        </div>
+        <div class="inv-row" role="row">
+          <div class="inv-who"><strong>Parcel &amp; Pine</strong><small>INV-1051</small></div>
+          <span class="amt">$1,150</span>
+          <span class="chip overdue">Overdue</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="foot">Lumen is a fictional product built for a hackathon demo.</footer>
+
+  <details id="xp" class="xp" open>
+    <summary>Live experiment <span id="xp-status" class="xp-status">loading</span></summary>
+    <dl>
+      <dt>Flag</dt><dd><code id="xp-flag">hero_cta</code></dd>
+      <dt>Variant</dt><dd id="xp-variant">…</dd>
+      <dt>Visitor</dt><dd><code id="xp-visitor">…</code></dd>
+    </dl>
+    <p id="xp-hypothesis" class="xp-hyp"></p>
+    <ol id="xp-events" class="xp-events"></ol>
+    <button id="xp-reset" type="button" class="xp-reset">New visitor</button>
+  </details>
+
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>
