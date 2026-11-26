@@ -8,12 +8,16 @@
 //   node scripts/simulate.mjs --visitors 500
 //   node scripts/simulate.mjs --rate 30 --forever          # 30 visitors/min until stopped
 //   node scripts/simulate.mjs --visitors 2000 --dry-run    # no Flagsmith, sanity check only
+//   node scripts/simulate.mjs --visitors 2000 --json out/sim.json  # also save final stats as JSON
 
 import { parseArgs } from 'node:util';
 import { randomUUID, createHash } from 'node:crypto';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { createFlagsmithInstance } from '@flagsmith/flagsmith/isomorphic';
 import { enrol, trackCtaClick, VARIANTS } from '../src/experiment.js';
 import { loadEnv } from './env.mjs';
+import { compare } from './stats.mjs';
 
 loadEnv();
 const { values: o } = parseArgs({
@@ -26,6 +30,7 @@ const { values: o } = parseArgs({
     'p-outcome': { type: 'string', default: process.env.SIM_P_OUTCOME ?? '0.11' },
     'dry-run': { type: 'boolean', default: false },
     quiet: { type: 'boolean', default: false },
+    json: { type: 'string' },                       // write final stats + compare() to this file
   },
 });
 
@@ -40,8 +45,15 @@ if (!o['dry-run'] && !env.environmentID) {
   process.exit(1);
 }
 
+// Colors only on a real terminal, and never when NO_COLOR is set.
+const useColor = !!process.stdout.isTTY && !process.env.NO_COLOR;
+const paint = (code, s) => (useColor ? `\x1b[${code}m${s}\x1b[0m` : s);
+const green = (s) => paint('32', s);
+const yellow = (s) => paint('33', s);
+const dim = (s) => paint('2', s);
+
 const stats = Object.fromEntries(Object.keys(VARIANTS).map((v) => [v, { visits: 0, clicks: 0 }]));
-let errors = 0, outside = 0;
+let errors = 0, outside = 0, done = 0;
 
 async function visit() {
   const visitorId = 'sim_' + randomUUID();
@@ -63,15 +75,72 @@ async function visit() {
   if (fs) await fs.close(10000);
 }
 
+const BAR_WIDTH = 30;
+const ctrOf = (s) => (s.visits ? s.clicks / s.visits : 0);
+
+function bar(ctr, maxCtr) {
+  const filled = maxCtr > 0 ? Math.round((BAR_WIDTH * ctr) / maxCtr) : 0;
+  return '█'.repeat(filled).padEnd(BAR_WIDTH);
+}
+
+const signed = (x, digits) => `${x >= 0 ? '+' : ''}${x.toFixed(digits)}`;
+
+function comparisonLines() {
+  const r = compare(stats.control, stats.outcome);
+  if (r.pA === null || r.pB === null) return [dim('outcome vs control: waiting for visits in both variants')];
+  const headline = r.lift === null
+    ? 'outcome vs control: lift n/a'
+    : `outcome vs control: ${signed(100 * r.lift, 1)}% lift`;
+  const pText = r.pValue < 0.0001 ? 'p<0.0001' : `p=${r.pValue.toFixed(4)}`;
+  const detail = `(diff ${signed(100 * r.diff, 1)}pp, 95% CI ${signed(100 * r.ci95[0], 1)}pp to ${signed(100 * r.ci95[1], 1)}pp)  ${pText}`;
+  const verdict = r.significant ? green('✅ significant') : yellow('⏳ not significant yet');
+  const color = r.significant ? green : yellow;
+  return [`${color(headline)}  ${dim(detail)}  ${verdict}`];
+}
+
+// One plain-English sentence for the final report.
+const label = (v) => VARIANTS[v].headline.split(/[.?!]/)[0].trim();
+
+function plainWords() {
+  const r = compare(stats.control, stats.outcome);
+  if (r.pA === null || r.pB === null) return 'In plain words: not enough visits in both versions yet to call a winner. Keep the test running.';
+  if (r.diff === 0) return 'In plain words: both versions got the same click rate so far. Keep the test running.';
+  const better = r.diff > 0 ? 'outcome' : 'control';
+  const hi = Math.max(r.pA, r.pB), lo = Math.min(r.pA, r.pB);
+  const amount = lo > 0 ? `${Math.round(100 * (hi / lo - 1))}%` : `${(100 * (hi - lo)).toFixed(1)} percentage points`;
+  const who = `visitors who saw “${label(better)}” clicked ${amount} more often`;
+  if (!r.significant) return `In plain words: ${who}, but with this little traffic that could still be luck (p=${r.pValue.toFixed(2)}). Keep the test running.`;
+  const chance = r.pValue < 0.001 ? 'less than 1 in 1,000' : `about 1 in ${Math.round(1 / r.pValue)}`;
+  return `In plain words: ${who}. A gap this big would show up by chance ${chance} times, so ${better} wins.`;
+}
+
+function writeJson() {
+  if (!o.json) return;
+  mkdirSync(dirname(o.json), { recursive: true });
+  const payload = { generatedAt: new Date().toISOString(), stats, compare: compare(stats.control, stats.outcome) };
+  writeFileSync(o.json, JSON.stringify(payload, null, 2) + '\n');
+}
+
 function report(final = false) {
-  const rows = Object.entries(stats).map(([v, s]) =>
-    `${v.padEnd(8)} visits ${String(s.visits).padStart(6)}  clicks ${String(s.clicks).padStart(5)}  CTR ${(s.visits ? (100 * s.clicks) / s.visits : 0).toFixed(2)}%`);
-  console.log(`${final ? '\nDone.' : new Date().toISOString()}\n${rows.join('\n')}` +
-    `\nerrors ${errors}${outside ? `  not-enrolled ${outside} (experiment not running or outside rollout %)` : ''}`);
+  const names = Object.keys(stats);
+  const maxCtr = Math.max(0, ...names.map((v) => ctrOf(stats[v])));
+  const rows = names.map((v) => {
+    const s = stats[v];
+    return `${v.padEnd(8)} visits ${String(s.visits).padStart(6)}  clicks ${String(s.clicks).padStart(5)}  CTR ${(100 * ctrOf(s)).toFixed(2)}%  ${bar(ctrOf(s), maxCtr)}`;
+  });
+  console.log([
+    final ? '\nDone.' : new Date().toISOString(),
+    ...rows,
+    '',
+    ...comparisonLines(),
+    ...(final ? [plainWords()] : []),
+    `errors ${errors}${outside ? `  not-enrolled ${outside} (experiment not running or outside rollout %)` : ''}`,
+  ].join('\n'));
 }
 
 async function guarded() {
   try { await visit(); } catch (e) { errors++; if (!o.quiet) console.error('visit failed:', e.message); }
+  finally { done++; }
 }
 
 const concurrency = +o.concurrency;
@@ -88,16 +157,25 @@ if (o.rate) {
       launched++; inflight++;
       guarded().finally(() => inflight--);
     }, gap);
-    process.on('SIGINT', () => { clearInterval(tick); report(true); process.exit(0); });
+    process.on('SIGINT', () => { clearInterval(tick); report(true); writeJson(); process.exit(0); });
   });
   clearInterval(reportTimer);
 } else {
   // Burst mode: N visitors, `concurrency` at a time.
   let next = 0;
   const total = +o.visitors;
+  const showProgress = !!process.stdout.isTTY && !o.quiet;
+  const progress = showProgress
+    ? setInterval(() => process.stdout.write(`\r\x1b[K${dim(`${done}/${total} visitors · ${errors} errors`)}`), 250)
+    : null;
   await Promise.all(Array.from({ length: concurrency }, async () => {
     while (next < total) { next++; await guarded(); }
   }));
+  if (progress) {
+    clearInterval(progress);
+    process.stdout.write('\r\x1b[K'); // clear the progress line before the report
+  }
 }
 report(true);
+writeJson();
 process.exit(0);

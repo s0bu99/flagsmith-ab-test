@@ -4,6 +4,9 @@
 export const FLAG_KEY = 'hero_cta'; // multivariate flag, control value = "control"
 export const CONVERSION_EVENT = 'cta_click'; // metric event name in Flagsmith
 
+export const HYPOTHESIS =
+  'Outcome-framed copy ("Get paid 2x faster") gets more visitors to click the CTA than feature-framed copy ("Automated invoice reminders").';
+
 export const VARIANTS = {
   control: {
     headline: 'Automated invoice reminders for freelancers',
